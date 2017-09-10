@@ -15,14 +15,15 @@
  *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- *  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- *  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- *  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- *  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- *  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <sys/file.h>
@@ -81,14 +82,16 @@ read_entropy(char *dev, char *buf, uint32_t n)
 	int fd = open(dev, O_RDONLY);
 	if ( fd < 0 )
 	{
-		syslog(LOG_ERR, "Unable to open device %s for writing: %s", dev, strerror(errno));
+		syslog(LOG_ERR, "Unable to open device %s for writing: %s",
+		    dev, strerror(errno));
 	       	exit(-1);
 	}
 	flock(fd, LOCK_EX);
 	rv = read(fd,buf,n);
 	if ( rv < 0 ) 
 	{
-		syslog(LOG_ERR, "Error reading bytes from entropy source: %s", strerror(errno));
+		syslog(LOG_ERR, "Error reading bytes from entropy source: %s",
+		    strerror(errno));
 		exit(-1);
 	}
 	flock(fd, LOCK_UN);
@@ -105,13 +108,15 @@ write_entropy(char *buf, int n)
 	int fd = open("/dev/random", O_WRONLY);
 	if ( fd < 0 )
 	{
-		syslog(LOG_ERR, "Unable to open /dev/random for writing: %s", strerror(errno));
+		syslog(LOG_ERR, "Unable to open /dev/random for writing: %s",
+		    strerror(errno));
 		exit(-1);
 	}
 
 	if ( rv < 0 ) 
 	{
-		syslog(LOG_ERR, "Unable to write to /dev/random: %s", strerror(errno));
+		syslog(LOG_ERR, "Unable to write to /dev/random: %s",
+		    strerror(errno));
 		exit(-1);
 	}
 	close(fd);
@@ -120,7 +125,8 @@ write_entropy(char *buf, int n)
 /* main daemon child loop */
 void entropy_feed(char *dev, uint32_t n, uint32_t s)
 {
-	syslog(LOG_NOTICE, "bsd-rngd: entropy gathering daemon started for device %s", dev);
+	syslog(LOG_NOTICE,
+	    "bsd-rngd: entropy gathering daemon started for device %s", dev);
 	char buf[n];
 	explicit_bzero(buf,n);
 	/* main loop to do the thing */
@@ -155,7 +161,8 @@ read_config(conf_t *c, char *f)
 	FILE *fh = fopen(f,"r");
 	if (fh == NULL)
 	{
-		syslog(LOG_ERR, "Unable to open bsd-rngd.conf for read: %s", strerror(errno));
+		syslog(LOG_ERR, "Unable to open bsd-rngd.conf for read: %s",
+		    strerror(errno));
 		exit(-1);
 	}
 	flock(fileno(fh), LOCK_EX);
@@ -220,7 +227,8 @@ main(int argc, char *argv[])
 	pfh = pidfile_open(NULL, 0600, &spid);
 	if (pfh == NULL) {
 		if (errno == EEXIST)
-			errx(EXIT_FAILURE, "Daemon already running, pid: %d", spid);
+			errx(EXIT_FAILURE, "Daemon already running, pid: %d",
+			    spid);
 		warn("Cannot open or create pidfile");
 	}
 
@@ -235,7 +243,8 @@ main(int argc, char *argv[])
 	pidfile_write(pfh);
 
 	/* get to doing work */
-	entropy_feed(config.entropy_device, (uint32_t)atoi(config.read_bytes), (uint32_t)atoi(config.sleep_seconds));
+	entropy_feed(config.entropy_device, (uint32_t)atoi(config.read_bytes),
+	    (uint32_t)atoi(config.sleep_seconds));
 
 	pidfile_remove(pfh);
 	return 0;
