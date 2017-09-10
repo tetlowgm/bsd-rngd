@@ -29,8 +29,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libutil.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +54,7 @@ typedef struct conf {
 
 } conf_t;
 
-void write_pid(pid_t);
+static volatile sig_atomic_t wantdie = 0;
 
 static void
 usage(void)
@@ -61,8 +64,12 @@ usage(void)
 	exit(1);
 }
 
+static void
+dodie(int signo)
+{
 
-
+        wantdie = signo;
+}
 
 /* read entropy from the trng device */
 void
@@ -113,13 +120,14 @@ write_entropy(char *buf, int n)
 /* main daemon child loop */
 void entropy_feed(char *dev, uint32_t n, uint32_t s)
 {
-	write_pid(getpid());
 	syslog(LOG_NOTICE, "bsd-rngd: entropy gathering daemon started for device %s", dev);
 	char buf[n];
 	explicit_bzero(buf,n);
 	/* main loop to do the thing */
 	while(1)
 	{
+		if (wantdie)
+			return;
 		read_entropy(dev,buf,n);
 		write_entropy(buf,n);
 		explicit_bzero(buf,n);
@@ -177,22 +185,6 @@ read_config(conf_t *c, char *f)
 	
 }
 
-/* write pid file to /var/run */
-void
-write_pid(pid_t p)
-{
-	FILE *fh = fopen("/var/run/bsd-rngd.pid", "w");
-	if (fh == NULL)
-	{
-		syslog(LOG_WARNING, "Unable to write pid file /var/run/bsd-rngd: %s", strerror(errno));
-		exit(-1);
-	}
-	flock(fileno(fh), LOCK_EX);
-	fprintf(fh,"%d\n",p);
-	flock(fileno(fh), LOCK_UN);
-	fclose(fh);
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -200,6 +192,8 @@ main(int argc, char *argv[])
 	conf_t config;
 	int c = 0;
 	int daemonize = 0;
+	struct pidfh *pfh;
+	pid_t spid;
 
 	while((ch = getopt(argc, argv, "hdc:")) != -1)
 	{
@@ -223,24 +217,26 @@ main(int argc, char *argv[])
 	if (c == 0)
 		read_config(&config, "/usr/local/etc/bsd-rngd.conf");
 
-	if (daemonize == 1)
-	{
-	
-	/* some boiler plate daemonization code */
-		pid_t pid, sid;
-		pid = fork();
-
-		if (pid < 0)
-			exit(-1);
-		if (pid > 0)
-			exit(0);
-		sid = setsid();
-		if (sid < 0)
-			exit(-1);
-		close(STDIN_FILENO);
-		close(STDOUT_FILENO);
-		close(STDERR_FILENO);
+	pfh = pidfile_open(NULL, 0600, &spid);
+	if (pfh == NULL) {
+		if (errno == EEXIST)
+			errx(EXIT_FAILURE, "Daemon already running, pid: %d", spid);
+		warn("Cannot open or create pidfile");
 	}
+
+	if ((daemonize == 1) && (daemon(0, 0) == -1))
+	{
+		pidfile_remove(pfh);
+		err(EXIT_FAILURE, "Cannot daemonize");
+	}
+
+	(void)signal(SIGTERM, dodie);
+
+	pidfile_write(pfh);
+
 	/* get to doing work */
 	entropy_feed(config.entropy_device, (uint32_t)atoi(config.read_bytes), (uint32_t)atoi(config.sleep_seconds));
+
+	pidfile_remove(pfh);
+	return 0;
 }
