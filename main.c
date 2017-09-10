@@ -53,10 +53,11 @@ typedef struct conf {
 
 void write_pid(pid_t);
 
-void
+static void
 usage(void)
 {
-	fprintf(stderr,"USAGE: bsdrngd [-d -c /path/to/config]\nBy default, will run in the foreground and load its config from /usr/local/etc/bsd-rngd.conf\n");
+	(void)fprintf(stderr,"%s\n",
+		      "usage: bsdrngd [-d] [-c config_file]");
 	exit(1);
 }
 
