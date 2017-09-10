@@ -1,6 +1,7 @@
-CFLAGS=-Wall -g
+# $FreeBSD$
 
-bsd-rngd:
-	cc ${CFLAGS} main.c -o bsdrngd
-clean:
-	rm -f bsd-rngd *.o
+PROG=	bsdrngd
+SRCS=	main.c
+MAN=
+
+.include <bsd.prog.mk>
