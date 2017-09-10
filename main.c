@@ -73,13 +73,12 @@ dodie(int signo)
 }
 
 /* read entropy from the trng device */
-void
+static void
 read_entropy(char *dev, char *buf, uint32_t n)
 {
-
-
 	ssize_t rv = 0;
 	int fd = open(dev, O_RDONLY);
+
 	if ( fd < 0 )
 	{
 		syslog(LOG_ERR, "Unable to open device %s for writing: %s",
@@ -98,14 +97,12 @@ read_entropy(char *dev, char *buf, uint32_t n)
 	close(fd);
 }
 
-void
+static void
 write_entropy(char *buf, int n)
 {	
-
-
-
 	ssize_t rv = 0;
 	int fd = open("/dev/random", O_WRONLY);
+
 	if ( fd < 0 )
 	{
 		syslog(LOG_ERR, "Unable to open /dev/random for writing: %s",
@@ -123,14 +120,16 @@ write_entropy(char *buf, int n)
 }
 
 /* main daemon child loop */
-void entropy_feed(char *dev, uint32_t n, uint32_t s)
+static void
+entropy_feed(char *dev, uint32_t n, uint32_t s)
 {
+	char buf[n];
+
 	syslog(LOG_NOTICE,
 	    "bsd-rngd: entropy gathering daemon started for device %s", dev);
-	char buf[n];
 	explicit_bzero(buf,n);
 	/* main loop to do the thing */
-	while(1)
+	for(;;)
 	{
 		if (wantdie)
 			return;
@@ -142,10 +141,11 @@ void entropy_feed(char *dev, uint32_t n, uint32_t s)
 }
 
 /* Perl-like utility function */
-void
+static void
 chomp(char *s)
 {
 	int i = 0;
+
 	for (i = 0; i < strlen(s); i++)
 	{
 		if (s[i] == '\n')
@@ -155,10 +155,12 @@ chomp(char *s)
 }
 
 /* read in the configuration file */
-void
+static void
 read_config(conf_t *c, char *f)
 {
 	FILE *fh = fopen(f,"r");
+	char line[MAX_CONF_LINE_BUF];
+
 	if (fh == NULL)
 	{
 		syslog(LOG_ERR, "Unable to open bsd-rngd.conf for read: %s",
@@ -166,7 +168,6 @@ read_config(conf_t *c, char *f)
 		exit(-1);
 	}
 	flock(fileno(fh), LOCK_EX);
-	char line[MAX_CONF_LINE_BUF];
 	while(fgets(line,sizeof(line), fh) != NULL)
 	{
 		chomp(line);
@@ -189,7 +190,6 @@ read_config(conf_t *c, char *f)
 	}
 	flock(fileno(fh),LOCK_UN);
 	fclose(fh);
-	
 }
 
 int
