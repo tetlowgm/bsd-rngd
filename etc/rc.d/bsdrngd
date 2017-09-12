@@ -6,18 +6,15 @@
 
 . /etc/rc.subr
 
-name=bsdrngd
-rcvar=bsdrngd_enable
-stop_cmd=bsdrngd_stop
+name="bsdrngd"
+rcvar="bsdrngd_enable"
 command="/usr/local/sbin/bsdrngd"
-command_args="-d"
-
-bsdrngd_stop()
-{
-	cat /var/run/bsd-rngd.pid | xargs kill -9
-	rm /var/run/bsd-rngd.pid
-}
-
 
 load_rc_config $name
+
+bytes="${bsdrngd_bytes:-16}"
+device="${bsdrngd_device:-/dev/cuaU0}"
+interval="${bsdrngd_interval:-2}"
+command_args="-d -b ${bytes} -s ${interval} ${device}"
+
 run_rc_command "$1" 

@@ -38,22 +38,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
 
-
-#define MAX_DEV_NAME_LEN	16
-#define MAX_CONF_LINE_BUF	24
-#define MAX_BYTES 		64
-#define DELIMETER		"="	
-
-/* structure containing configuration file items */
-typedef struct conf {
-	char		entropy_device[MAX_DEV_NAME_LEN];
-	char		read_bytes[2];
-	char		sleep_seconds[1];	
-
-} conf_t;
+#define DEF_BYTES	16
+#define DEF_SECS	2
 
 static volatile sig_atomic_t wantdie = 0;
 
@@ -61,8 +51,8 @@ static void
 usage(void)
 {
 	(void)fprintf(stderr,"%s\n",
-		      "usage: bsdrngd [-d] [-c config_file]");
-	exit(1);
+		      "usage: bsdrngd [-dh] [-b bytes] [-s sleeptime] /dev/devicename");
+	exit(EX_USAGE);
 }
 
 static void
@@ -140,102 +130,55 @@ entropy_feed(char *dev, uint32_t n, uint32_t s)
 	}
 }
 
-/* Perl-like utility function */
-static void
-chomp(char *s)
-{
-	int i = 0;
-
-	for (i = 0; i < strlen(s); i++)
-	{
-		if (s[i] == '\n')
-			s[i] = '\0';
-	}
-	
-}
-
-/* read in the configuration file */
-static void
-read_config(conf_t *c, char *f)
-{
-	FILE *fh = fopen(f,"r");
-	char line[MAX_CONF_LINE_BUF];
-
-	if (fh == NULL)
-	{
-		syslog(LOG_ERR, "Unable to open bsd-rngd.conf for read: %s",
-		    strerror(errno));
-		exit(-1);
-	}
-	flock(fileno(fh), LOCK_EX);
-	while(fgets(line,sizeof(line), fh) != NULL)
-	{
-		chomp(line);
-		char *conf_item;
-		conf_item = strstr((char*)line,DELIMETER);
-		conf_item = conf_item + strlen(DELIMETER);
-		if (strstr(line, "DEVICE") !=0)
-		{
-			memcpy(c->entropy_device, conf_item, MAX_DEV_NAME_LEN);
-		}
-		if (strstr(line, "BYTES") != 0)
-		{
-			memcpy(c->read_bytes, conf_item, 2);	
-		}
-		if (strstr(line, "INTERVAL") != 0)
-		{
-			memcpy(c->sleep_seconds, conf_item, 1);
-	
-		}
-	}
-	flock(fileno(fh),LOCK_UN);
-	fclose(fh);
-}
-
 int
 main(int argc, char *argv[])
 {
-	int ch;
-	conf_t config;
-	int c = 0;
-	int daemonize = 0;
+	int ch, bflag, dflag, iflag;
 	struct pidfh *pfh;
 	pid_t spid;
+	char *device;
 
-	while((ch = getopt(argc, argv, "hdc:")) != -1)
-	{
-		switch(ch)
-		{
-			case 'h':
-				usage();
-				break;
-			case 'd':
-				daemonize = 1;
-				break;
-			case 'c':
-				read_config(&config,optarg);
-				c = 1;
-				break;
-			default:
-				usage();
+	bflag = DEF_BYTES;
+	dflag = 0;
+	iflag = DEF_SECS;
+
+	while((ch = getopt(argc, argv, "b:dhi:")) != -1)
+		switch(ch) {
+		case 'b':
+			bflag = atoi(optarg);
+			break;
+		case 'd':
+			dflag = 1;
+			break;
+		case 'i':
+			iflag = atoi(optarg);
+			break;
+		case 'h':
+		default:
+			usage();
 		}
-		
-	}
-	if (c == 0)
-		read_config(&config, "/usr/local/etc/bsd-rngd.conf");
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1)
+		usage();
+
+	device = argv[0];
+	printf("device: %s\n", device);
 
 	pfh = pidfile_open(NULL, 0600, &spid);
 	if (pfh == NULL) {
 		if (errno == EEXIST)
-			errx(EXIT_FAILURE, "Daemon already running, pid: %d",
+			errx(EX_OSFILE, "Daemon already running, pid: %d",
 			    spid);
 		warn("Cannot open or create pidfile");
 	}
 
-	if ((daemonize == 1) && (daemon(0, 0) == -1))
+	if ((dflag == 1) && (daemon(0, 0) == -1))
 	{
 		pidfile_remove(pfh);
-		err(EXIT_FAILURE, "Cannot daemonize");
+		err(EX_OSERR, "Cannot daemonize");
 	}
 
 	(void)signal(SIGTERM, dodie);
@@ -243,9 +186,8 @@ main(int argc, char *argv[])
 	pidfile_write(pfh);
 
 	/* get to doing work */
-	entropy_feed(config.entropy_device, (uint32_t)atoi(config.read_bytes),
-	    (uint32_t)atoi(config.sleep_seconds));
+	entropy_feed(device, bflag, iflag);
 
 	pidfile_remove(pfh);
-	return 0;
+	return EXIT_SUCCESS;
 }
